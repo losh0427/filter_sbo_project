@@ -1,0 +1,140 @@
+{
+  "parameter_bounds": {
+    "top_width": {
+      "lower_bound": 100.0,
+      "upper_bound": 200.0,
+      "unit": "mm",
+      "description": "Trapezoidal top width (10-20 cm)",
+      "index": 0,
+      "type": "continuous"
+    },
+    "bottom_width": {
+      "lower_bound": 200.0,
+      "upper_bound": 400.0,
+      "unit": "mm", 
+      "description": "Trapezoidal bottom width (20-40 cm)",
+      "index": 1,
+      "type": "continuous"
+    },
+    "height": {
+      "lower_bound": 50.0,
+      "upper_bound": 70.0,
+      "unit": "mm",
+      "description": "Trapezoidal height (5-7 cm)",
+      "index": 2,
+      "type": "continuous"
+    },
+    "length": {
+      "lower_bound": 300.0,
+      "upper_bound": 400.0,
+      "unit": "mm",
+      "description": "Cavity width/length (30-40 cm)",
+      "index": 3,
+      "type": "continuous"
+    },
+    "tooth_depth": {
+      "lower_bound": 0.0,
+      "upper_bound": 20.0,
+      "unit": "mm",
+      "description": "Tooth depth (0-2 cm, groove structure on top surface only)",
+      "index": 4,
+      "type": "continuous"
+    },
+    "tooth_length": {
+      "lower_bound": 0.05,
+      "upper_bound": 200.0,
+      "unit": "mm",
+      "description": "Individual tooth length (0.005 cm - t, where t=10 cm)",
+      "index": 5,
+      "type": "continuous"
+    },
+    "tooth_width": {
+      "lower_bound": 0.05,
+      "upper_bound": 100.0,
+      "unit": "mm",
+      "description": "Individual tooth width (0.005 cm - t, where t=10 cm)",
+      "index": 6,
+      "type": "continuous"
+    },
+    "groove_length": {
+      "lower_bound": 0.05,
+      "upper_bound": 200.0,
+      "unit": "mm",
+      "description": "Gap between teeth in length direction (0.005 cm - t, where t=10 cm)",
+      "index": 7,
+      "type": "continuous"
+    },
+    "groove_width": {
+      "lower_bound": 0.05,
+      "upper_bound": 100.0,
+      "unit": "mm",
+      "description": "Gap between teeth in width direction (0.005 cm - t, where t=10 cm)",
+      "index": 8,
+      "type": "continuous"
+    },
+    "extension_factor": {
+      "lower_bound": 1.0,
+      "upper_bound": 2.0,
+      "unit": "dimensionless",
+      "description": "Boundary extension factor for tooth array placement",
+      "index": 9,
+      "type": "continuous"
+    }
+  },
+  "fixed_parameters": {
+    "wall_thickness": {
+      "value": 2.0,
+      "unit": "mm",
+      "description": "Fixed wall thickness"
+    },
+    "f0": {
+      "value": 2.45,
+      "unit": "GHz", 
+      "description": "Fixed working frequency"
+    },
+    "material": {
+      "value": "stainless_steel",
+      "unit": "string",
+      "description": "Stainless steel (SUS314/SUS316)"
+    },
+    "max_tooth_count": {
+      "value": 600,
+      "unit": "count",
+      "description": "Maximum tooth count limit"
+    }
+  },
+  "parameter_order": [
+    "top_width",
+    "bottom_width", 
+    "height",
+    "length",
+    "tooth_depth",
+    "tooth_length",
+    "tooth_width",
+    "groove_length",
+    "groove_width",
+    "extension_factor"
+  ],
+  "design_specifications": {
+    "cavity_structure": {
+      "opening_faces": "Trapezoidal cross-section (front and rear)",
+      "material": "Stainless steel (SUS314/SUS316)",
+      "geometry": "Trapezoidal cavity with variable dimensions"
+    },
+    "groove_structure": {
+      "location": "Top surface only",
+      "pattern": "Four-quadrant symmetric tooth array",
+      "constraints": "t = max_top_width / 2 = 20cm / 2 = 10cm"
+    }
+  },
+  "metadata": {
+    "version": "1.1",
+    "description": "Updated parameter bounds for stainless steel trapezoidal cavity filter with top-surface groove structure",
+    "total_dimensions": 10,
+    "created_date": "2025-07-17",
+    "updated_date": "2025-07-17",
+    "coordinate_system": "Cartesian",
+    "units_system": "mm-GHz",
+    "calculation_note": "t = max_top_width / 2 = 20cm / 2 = 10cm = 100mm"
+  }
+}

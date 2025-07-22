@@ -1,3 +1,10 @@
+# My personal .gitignore file for Python projects
+Data1/
+./scripts/__pycache__/
+
+
+
+# default .gitignore for Python projects
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
