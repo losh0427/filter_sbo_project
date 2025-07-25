@@ -1,18 +1,20 @@
-# -*- coding: ascii -*-
-# Initial sampling pipeline for cavity filter optimization
-
 import os
-import time
 import functions
-import validation
 
-def run_initial_sampling_pipeline(n_samples=300, 
-                                 data_dir="../Data1",
-                                 config_file=None):
-    """Execute complete initial sampling pipeline"""
+def generate_input_files(n_samples=300, data_dir="../Data1", config_file=None):
+    """Generate specified number of input{i}.txt files for HFSS simulation
+    
+    Args:
+        n_samples: Number of input files to generate
+        data_dir: Directory to save input files
+        config_file: Parameter configuration JSON file path (optional)
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
     
     print("=" * 60)
-    print("INITIAL SAMPLING PIPELINE")
+    print("GENERATING INPUT FILES")
     print("=" * 60)
     print(f"Number of samples: {n_samples}")
     print(f"Data directory: {data_dir}")
@@ -21,251 +23,166 @@ def run_initial_sampling_pipeline(n_samples=300,
     print()
     
     try:
-        # Stage 1: Generate random parameters
-        print("Stage 1: Generating random parameter sets...")
+        # Generate random parameter sets
+        print("Generating random parameter sets...")
         parameter_sets = functions.generate_random_parameters(
             n_samples=n_samples,
             config_file=config_file
         )
         print(f"Generated {len(parameter_sets)} parameter sets")
         
-        # Stage 2: Save input files
-        print("\nStage 2: Saving input files...")
-        functions.save_input_files(parameter_sets, data_dir)
+        # Ensure data directory exists
+        functions.ensure_directory_exists(data_dir)
         
-        # Stage 3: Validate generated inputs
-        print("\nStage 3: Validating generated inputs...")
-        validate_generated_inputs(data_dir, n_samples, config_file)
+        # Save input files
+        print("Saving input files...")
+        for i, param_vector in enumerate(parameter_sets):
+            input_file_path = os.path.join(data_dir, f"input{i}.txt")
+            with open(input_file_path, 'w') as f:
+                # Write as space-separated values
+                param_str = ' '.join([str(param) for param in param_vector])
+                f.write(param_str)
         
-        # Stage 4: Instructions for HFSS simulation
-        print("\nStage 4: Ready for HFSS simulation")
+        print(f"Successfully generated {len(parameter_sets)} input files in {data_dir}")
+        print()
         print("=" * 40)
         print("NEXT STEPS:")
-        print("1. Execute hfss_script.py in Ansys Electronics Desktop")
-        print("2. Or run: python hfss_script.py")
-        print("3. Wait for all simulations to complete")
-        print("4. Run integration when simulations are done:")
-        print(f"   python initial.py --integrate --data_dir {data_dir}")
-        print("5. Dataset will be created in: ../Data/dataset.txt")
+        print("1. Run HFSS simulation script: hfss_script.py")
+        print("2. Wait for all simulations to complete")
+        print("3. Run integration to create dataset:")
+        print("   integrate_to_dataset()")
         print("=" * 40)
         
         return True
         
     except Exception as e:
-        print(f"Error in initial sampling pipeline: {str(e)}")
+        print(f"Error generating input files: {str(e)}")
         return False
 
-def validate_generated_inputs(data_dir="../Data1", expected_count=300, config_file=None):
-    """Validate generated input files"""
-    input_files = functions.collect_all_input_files(data_dir)
+def integrate_to_dataset(data_dir="../Data1", dataset_file_path=None):
+    """Integrate input{i}.txt and output{i}.fld files into dataset.txt
     
-    print(f"Validating {len(input_files)} input files...")
+    Args:
+        data_dir: Directory containing input and output files
+        dataset_file_path: Path for output dataset file (default: "../Data/dataset.txt")
     
-    if len(input_files) != expected_count:
-        print(f"Warning: Expected {expected_count} files, found {len(input_files)}")
+    Returns:
+        bool: True if successful, False otherwise
+    """
     
-    valid_count = 0
-    invalid_files = []
-    
-    for input_file in input_files:
-        try:
-            with open(input_file, 'r') as f:
-                param_line = f.read().strip()
-                param_vector = [float(x) for x in param_line.split()]
-            
-            # Validate parameter bounds
-            bounds_valid, bounds_msg = validation.validate_parameter_bounds(param_vector, config_file)
-            if not bounds_valid:
-                invalid_files.append((os.path.basename(input_file), bounds_msg))
-                continue
-            
-            # Validate geometric constraints  
-            geom_valid, geom_msg = validation.validate_geometric_constraints(param_vector)
-            if not geom_valid:
-                invalid_files.append((os.path.basename(input_file), geom_msg))
-                continue
-            
-            valid_count += 1
-            
-        except Exception as e:
-            invalid_files.append((os.path.basename(input_file), f"Parse error: {str(e)}"))
-    
-    print(f"Validation results: {valid_count}/{len(input_files)} valid input files")
-    
-    if invalid_files:
-        print("Invalid files:")
-        for filename, error in invalid_files[:10]:  # Show first 10 errors
-            print(f"  {filename}: {error}")
-        if len(invalid_files) > 10:
-            print(f"  ... and {len(invalid_files)-10} more errors")
-    
-    return valid_count == len(input_files)
-
-def wait_for_simulation_completion(data_dir="../Data1", expected_count=300, timeout=72000):
-    """Wait for all simulations to complete with progress monitoring"""
-    print(f"\nWaiting for {expected_count} simulations to complete...")
-    print("(This may take several hours)")
-    print()
-    
-    start_time = time.time()
-    last_count = 0
-    
-    while True:
-        fld_files = functions.collect_all_fld_files(data_dir)
-        current_count = len(fld_files)
-        
-        # Show progress
-        elapsed = time.time() - start_time
-        if current_count != last_count:
-            progress_pct = (current_count / expected_count) * 100
-            print(f"Progress: {current_count}/{expected_count} ({progress_pct:.1f}%) - "
-                  f"Elapsed: {elapsed/3600:.1f}h")
-            last_count = current_count
-        
-        if current_count >= expected_count:
-            print("All simulations completed!")
-            break
-            
-        if elapsed > timeout:
-            print(f"Timeout reached. Only {current_count}/{expected_count} completed.")
-            break
-            
-        time.sleep(30)  # Check every 30 seconds
-    
-    return current_count
-
-def integrate_results(data_dir="../Data1", dataset_file_path=None):
-    """Integrate simulation results into dataset"""
-    print("\n" + "=" * 60)
-    print("INTEGRATING SIMULATION RESULTS")
     print("=" * 60)
+    print("INTEGRATING TO DATASET")
+    print("=" * 60)
+    print(f"Data directory: {data_dir}")
     
     if dataset_file_path is None:
-        dataset_file_path = "../Data/dataset.txt"  # Default to Data folder
+        dataset_file_path = "../Data/dataset.txt"
+    print(f"Dataset file: {dataset_file_path}")
+    print()
     
     try:
-        # Check completeness
-        print("Checking simulation completeness...")
-        completeness = validation.check_simulation_completeness(data_dir)
+        # Check if data directory exists
+        if not os.path.exists(data_dir):
+            print(f"Error: Data directory does not exist: {data_dir}")
+            return False
         
-        if completeness["completeness_ratio"] < 0.8:
-            print(f"Warning: Only {completeness['completeness_ratio']:.1%} simulations completed")
-            response = input("Continue with integration? (y/n): ")
-            if response.lower() != 'y':
-                print("Integration cancelled")
-                return False
+        # Count available files
+        input_count = 0
+        output_count = 0
         
-        # Integrate data
-        print("\nIntegrating input and output data...")
+        for filename in os.listdir(data_dir):
+            if filename.startswith("input") and filename.endswith(".txt"):
+                input_count += 1
+            elif filename.startswith("output") and filename.endswith(".fld"):
+                output_count += 1
+        
+        print(f"Found {input_count} input files and {output_count} output files")
+        
+        if input_count == 0:
+            print("Error: No input files found")
+            return False
+        
+        if output_count == 0:
+            print("Error: No output files found")
+            return False
+        
+        # Integrate data using functions.py
+        print("Integrating data...")
         processed_count = functions.integrate_input_output_to_dataset(data_dir, dataset_file_path)
         
-        # Validate final dataset
-        print("\nValidating final dataset...")
-        dataset_valid, dataset_msg = validation.validate_dataset_file(dataset_file_path)
-        print(f"Dataset validation: {dataset_msg}")
-        
-        print("\n" + "=" * 60)
-        print("INTEGRATION COMPLETE")
-        print("=" * 60)
-        print(f"Dataset created: {dataset_file_path}")
-        print(f"Total entries: {processed_count}")
-        print(f"Completeness: {completeness['completeness_ratio']:.1%}")
-        
-        return True
+        if processed_count > 0:
+            print(f"Successfully created dataset with {processed_count} entries")
+            print(f"Dataset saved to: {dataset_file_path}")
+            print()
+            print("=" * 40)
+            print("INTEGRATION COMPLETE")
+            print(f"Total entries: {processed_count}")
+            print(f"Dataset file: {dataset_file_path}")
+            print("=" * 40)
+            return True
+        else:
+            print("Error: No valid data entries were processed")
+            return False
         
     except Exception as e:
         print(f"Error during integration: {str(e)}")
         return False
 
-def run_complete_pipeline(n_samples=300, 
-                         data_root="./Data1",
-                         wait_for_completion=True,
-                         timeout=72000,
-                         config_file=None):
-    """Run complete pipeline from parameter generation to dataset creation"""
-    
-    # Setup paths
-    input_dir = os.path.join(data_root, "inputs")
-    output_dir = os.path.join(data_root, "outputs")
-    dataset_file = os.path.join(data_root, "dataset.txt")
-    
-    # Stage 1: Generate inputs
-    success = run_initial_sampling_pipeline(
-        n_samples=n_samples,
-        data_root=data_root,
-        input_dir=input_dir,
-        output_dir=output_dir,
-        dataset_file=dataset_file,
-        config_file=config_file
-    )
-    
-    if not success:
-        return False
-    
-    # Stage 2: Wait for simulations (optional)
-    if wait_for_completion:
-        print("\nAutomatically waiting for simulation completion...")
-        completed_count = wait_for_simulation_completion(output_dir, n_samples, timeout)
-        
-        if completed_count < n_samples * 0.8:  # Less than 80% completed
-            print(f"Warning: Only {completed_count}/{n_samples} simulations completed")
-            return False
-        
-        # Stage 3: Integrate results
-        return integrate_results(input_dir, output_dir, dataset_file)
-    
-    return True
-
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="Initial sampling pipeline for cavity filter optimization")
-    parser.add_argument("--n_samples", type=int, default=300, help="Number of samples to generate")
+    parser = argparse.ArgumentParser(description="Simplified initial sampling for cavity filter optimization")
+    parser.add_argument("--n_samples", type=int, default=300, help="Number of input files to generate")
     parser.add_argument("--data_dir", default="../Data1", help="Data directory path")
     parser.add_argument("--dataset_file", default="../Data/dataset.txt", help="Dataset file path")
-    parser.add_argument("--config_file", default="parameters_config.json", help="Parameter config JSON file")
+    parser.add_argument("--config_file", default=None, help="Parameter config JSON file")
     
-    # Modes
-    parser.add_argument("--generate_only", action="store_true", help="Only generate input files")
-    parser.add_argument("--integrate", action="store_true", help="Only integrate results")
-    parser.add_argument("--complete", action="store_true", help="Run complete pipeline with waiting")
-    parser.add_argument("--validate", action="store_true", help="Only run validation")
-    
-    # Options
-    parser.add_argument("--timeout", type=int, default=72000, help="Timeout for waiting (seconds)")
+    # Mode selection
+    parser.add_argument("--generate", action="store_true", help="Generate input files")
+    parser.add_argument("--integrate", action="store_true", help="Integrate to dataset")
     
     args = parser.parse_args()
     
     try:
         if args.integrate:
             # Integration mode
-            integrate_results(args.data_dir, args.dataset_file)
+            success = integrate_to_dataset(args.data_dir, args.dataset_file)
             
-        elif args.validate:
-            # Validation mode
-            validation.run_full_validation(args.data_dir, args.dataset_file)
-            
-        elif args.complete:
-            # Complete pipeline with waiting
-            run_complete_pipeline(
-                n_samples=args.n_samples,
-                data_dir=args.data_dir,
-                wait_for_completion=True,
-                timeout=args.timeout,
-                config_file=args.config_file,
-                dataset_file=args.dataset_file
-            )
+        elif args.generate:
+            # Generation mode
+            success = generate_input_files(args.n_samples, args.data_dir, args.config_file)
             
         else:
-            # Default: generate inputs only
-            run_initial_sampling_pipeline(
-                n_samples=args.n_samples,
-                data_dir=args.data_dir,
-                config_file=args.config_file
-            )
+            # Default: show help
+            print("Please specify a mode:")
+            print("  --generate    : Generate input files")
+            print("  --integrate   : Integrate to dataset")
+            print()
+            print("Examples:")
+            print("  python initial.py --generate --n_samples 500")
+            print("  python initial.py --integrate --data_dir ../Data1")
+            success = False
+        
+        if success:
+            print("Operation completed successfully!")
+        else:
+            print("Operation failed!")
             
     except KeyboardInterrupt:
-        print("\nPipeline interrupted by user")
+        print("\nOperation interrupted by user")
     except Exception as e:
-        print(f"Pipeline failed: {str(e)}")
+        print(f"Error: {str(e)}")
         raise
+
+
+"""
+usage:
+# 生成500個input文件
+python initial.py --generate --n_samples 500
+
+# 整合現有的input/output文件成dataset
+python initial.py --integrate --data_dir ../Data1
+
+# 指定dataset輸出位置
+python initial.py --integrate --dataset_file ../MyDataset/dataset.txt
+"""
