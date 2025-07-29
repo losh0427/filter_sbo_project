@@ -1,7 +1,7 @@
 # -*- coding: ascii -*-
-# HFSS 2020.2 automation - Enhanced Trapezoidal Cavity with Loop Processing
+# HFSS 2020.2 automation - Enhanced Trapezoidal Cavity with Boundary Constraints
 
-import os, datetime, time, ScriptEnv
+import os, datetime, time, ScriptEnv, math
 
 # Initialize HFSS
 ScriptEnv.Initialize("Ansoft.ElectronicsDesktop")
@@ -441,53 +441,87 @@ def calculate_tooth_positions(groove_params):
     
     return all_positions
 
+def enforce_tooth_boundary_constraints(center_x, center_y, tooth_length, tooth_width):
+    """Enforce boundary constraints for individual tooth"""
+    bounds = GEOMETRY_DATA["top_surface"]["bounds"]
+    
+    # Calculate maximum allowed dimensions based on position and boundaries
+    max_half_length_left = center_x - bounds["x_min"]
+    max_half_length_right = bounds["x_max"] - center_x
+    max_half_width_bottom = center_y - bounds["y_min"]  
+    max_half_width_top = bounds["y_max"] - center_y
+    
+    # Calculate actual allowed dimensions
+    max_length = min(tooth_length, max_half_length_left * 2, max_half_length_right * 2)
+    max_width = min(tooth_width, max_half_width_bottom * 2, max_half_width_top * 2)
+    
+    # Ensure positive dimensions
+    actual_length = max(0.05, max_length)  # Minimum 0.05mm
+    actual_width = max(0.05, max_width)
+    
+    is_adjusted = (actual_length != tooth_length or actual_width != tooth_width)
+    
+    return {
+        "length": actual_length,
+        "width": actual_width,
+        "is_adjusted": is_adjusted,
+        "adjustment_info": {
+            "original": [tooth_length, tooth_width],
+            "adjusted": [actual_length, actual_width],
+            "position": [center_x, center_y]
+        }
+    }
+
 def create_teeth_array(edt, groove_params, material_name="pec"):
-    """Create teeth array"""
+    """Create teeth array with boundary constraints"""
     tooth_positions = calculate_tooth_positions(groove_params)
     bounds = GEOMETRY_DATA["top_surface"]["bounds"]
     
     tooth_objects = []
     created_count = 0
+    adjustment_log = []
+    
+    # Get top surface Z coordinate
+    top_surface_z = bounds["z"]
     
     for idx, (center_x, center_y, center_z) in enumerate(tooth_positions):
         
         if created_count >= groove_params["max_tooth_count"]:
             break
         
-        # Calculate tooth boundaries
-        tooth_half_length = groove_params["tooth_length"] / 2.0
-        tooth_half_width = groove_params["tooth_width"] / 2.0
+        # Apply boundary constraints to tooth dimensions
+        constrained = enforce_tooth_boundary_constraints(
+            center_x, center_y,
+            groove_params["tooth_length"], 
+            groove_params["tooth_width"]
+        )
         
-        original_x_min = center_x - tooth_half_length
-        original_x_max = center_x + tooth_half_length
-        original_y_min = center_y - tooth_half_width
-        original_y_max = center_y + tooth_half_width
+        actual_tooth_length = constrained["length"]
+        actual_tooth_width = constrained["width"]
         
-        # Clip to boundaries
-        clipped_x_min = max(original_x_min, bounds["x_min"])
-        clipped_x_max = min(original_x_max, bounds["x_max"])
-        clipped_y_min = max(original_y_min, bounds["y_min"])
-        clipped_y_max = min(original_y_max, bounds["y_max"])
-        
-        clipped_length = clipped_x_max - clipped_x_min
-        clipped_width = clipped_y_max - clipped_y_min
-        
-        if clipped_length <= 0.05 or clipped_width <= 0.05:
+        # Skip if tooth becomes too small
+        if actual_tooth_length < 0.1 or actual_tooth_width < 0.1:
             continue
         
-        # Create tooth
+        # Calculate tooth position (centered)
+        tooth_x_min = center_x - actual_tooth_length / 2
+        tooth_y_min = center_y - actual_tooth_width / 2
+        
+        # Use top surface Z coordinate for tooth positioning
+        tooth_z_position = top_surface_z - groove_params["tooth_depth"]
+        
+        # Create tooth with constrained dimensions
         tooth_id = "GrooveTooth_{}".format(created_count)
-        box_start_z = center_z - groove_params["tooth_depth"]
         
         edt.CreateBox(
             [
                 "NAME:BoxParameters",
-                "XPosition:=", "{}mm".format(clipped_x_min),
-                "YPosition:=", "{}mm".format(clipped_y_min),
-                "ZPosition:=", "{}mm".format(box_start_z),
-                "XSize:=", "{}mm".format(clipped_length),
-                "YSize:=", "{}mm".format(clipped_width),
-                "ZSize:=", "{}mm".format(groove_params["tooth_depth"])
+                "XPosition:=", "{}mm".format(tooth_x_min),
+                "YPosition:=", "{}mm".format(tooth_y_min),
+                "ZPosition:=", "{}mm".format(tooth_z_position),
+                "XSize:=", "{}mm".format(math.floor(actual_tooth_length * 10000) / 10000),
+                "YSize:=", "{}mm".format(math.floor(actual_tooth_width * 10000) / 10000),
+                "ZSize:=", "{}mm".format(math.floor(groove_params["tooth_depth"] * 10000) / 10000)
             ],
             [
                 "NAME:Attributes",
@@ -509,6 +543,15 @@ def create_teeth_array(edt, groove_params, material_name="pec"):
         
         tooth_objects.append(tooth_id)
         created_count += 1
+        
+        # Log adjustment if applied
+        if constrained["is_adjusted"]:
+            adjustment_log.append({
+                "tooth_id": tooth_id,
+                "original_size": constrained["adjustment_info"]["original"],
+                "adjusted_size": constrained["adjustment_info"]["adjusted"],
+                "position": constrained["adjustment_info"]["position"]
+            })
     
     return tooth_objects
 
@@ -737,15 +780,42 @@ def run_single_simulation(trapezoidal_params, groove_params, iteration, data_dir
             "simulation_status": "failed"
         }
 
+
+
+# =====================================================================
+# SHARED COUNTER MANAGEMENT (Simple functions for HFSS compatibility)
+# =====================================================================
+
+def read_counter_from_file(counter_file_path):
+    """
+    Simple counter file reader for HFSS script
+    Returns 0 if file doesn't exist or has issues
+    """
+    try:
+        if not os.path.exists(counter_file_path):
+            return 0
+        
+        with open(counter_file_path, 'r') as f:
+            counter_str = f.read().strip()
+            if not counter_str:
+                return 0
+            return int(counter_str)
+    except:
+        return 0
 # =====================================================================
 # MAIN EXECUTION
 # =====================================================================
 
 if __name__ == "__main__":
     # Default execution: run main simulation loop
-    START_ITERATION = 0
-    END_ITERATION = 300
-    DATA_DIR = "../Data1"
+    COUNTER_FILE_PATH = "C:\\Users\\USER\\Desktop\\wave\\project\\current_input_counter.txt"
+    DATA_DIR = "C:\\Users\\USER\\Desktop\\wave\\project\\Data1"
+    SIMULATION_BATCH_SIZE = 50  # Process 50 iterations at a time
+    
+    # Read current counter to determine starting iteration
+    START_ITERATION = read_counter_from_file(COUNTER_FILE_PATH)
+    END_ITERATION = START_ITERATION + SIMULATION_BATCH_SIZE
+    DATA_DIR = "C:\\Users\\USER\\Desktop\\wave\\project\\Data1"
     
     main_simulation_loop(
         start_iter=START_ITERATION,
