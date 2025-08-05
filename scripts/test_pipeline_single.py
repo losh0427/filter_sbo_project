@@ -12,7 +12,8 @@ import numpy as np
 from models import GPSurrogateModel, AcquisitionFunction, ModelTrainer
 from functions import (
     get_parameter_bounds, load_historical_data, clip_parameters_to_bounds,
-    write_input_file, get_next_input_number, ensure_directory_exists
+    write_input_file, get_next_input_number_from_counter, ensure_directory_exists,
+    read_iteration_counter, update_iteration_counter
 )
 
 def test_single_pipeline_iteration():
@@ -30,11 +31,13 @@ def test_single_pipeline_iteration():
     base_path = "../Data"  # Data directory containing dataset.txt
     dataset_file = "dataset.txt"  # Dataset filename
     data1_dir = "../Data1"  # Directory for new input files
+    counter_file = "../current_input_counter.txt"  # Shared counter file
     acquisition_func_type = "EI"
     
     print(f"Base path: {base_path}")
     print(f"Dataset file: {dataset_file}")
     print(f"Data1 directory: {data1_dir}")
+    print(f"Counter file: {counter_file}")
     print(f"Acquisition function: {acquisition_func_type}")
     
     # Ensure Data1 directory exists
@@ -141,13 +144,13 @@ def test_single_pipeline_iteration():
         candidate_clipped = random_candidate
         acq_value = torch.tensor(0.0)
     
-    # Step 5: Generate next input file
+    # Step 5: Generate next input file using shared counter
     print("\n" + "="*40)
     print("STEP 5: GENERATING NEXT INPUT FILE")
     print("="*40)
     
-    # Get next input file number
-    next_input_num = get_next_input_number(data1_dir)
+    # Get next input file number from shared counter
+    next_input_num = get_next_input_number_from_counter(counter_file)
     input_filename = f"input{next_input_num}.txt"
     input_filepath = os.path.join(data1_dir, input_filename)
     
@@ -155,6 +158,10 @@ def test_single_pipeline_iteration():
         write_input_file(input_filepath, candidate_clipped)
         print(f"✅ Generated new input file: {input_filename}")
         print(f"   File path: {input_filepath}")
+        
+        # Update counter for next iteration
+        update_iteration_counter(counter_file, next_input_num + 1)
+        print(f"   Updated counter to: {next_input_num + 1}")
         
         # Verify file content
         with open(input_filepath, 'r') as f:
@@ -178,6 +185,7 @@ def test_single_pipeline_iteration():
     print(f"   GP model: Trained and validated")
     print(f"   Acquisition function: {acquisition_func_type} optimized")
     print(f"   New candidate: Generated as {input_filename}")
+    print(f"   Shared counter: Updated to {next_input_num + 1}")
     print(f"   Next step: Run HFSS simulation on {input_filename}")
     print("="*60)
     
