@@ -14,12 +14,6 @@ The framework optimizes trapezoidal cavity filters with groove patterns by:
 
 **Key Goal**: Find optimal cavity filter geometries with minimal simulation runs through intelligent sampling.
 
-## System Workflow
-
-```
-Initial Sampling → GP Model Training → Acquisition Optimization → HFSS Simulation → Iterate
-     (300)              (BoTorch)           (Next Candidate)        (Field Data)
-```
 
 **Parameter Space** (10D):
 - Cavity geometry: top_width, bottom_width, height, length
