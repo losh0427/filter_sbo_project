@@ -25,15 +25,15 @@ def manual_gp_predict(X_train, y_train, X_test, hyperparams):
     Implements exact same pipeline as BoTorch SingleTaskGP
     """
     print("\n" + "="*50)
-    print("詳細手算步驟 DETAILED MANUAL CALCULATION STEPS")
+    print("DETAILED MANUAL CALCULATION STEPS")
     print("="*50)
     
     # Step 1: Input normalization (match BoTorch's Normalize transform)
-    print("\n【步驟1: Input Normalization】")
-    print(f"原始訓練數據 X_train:")
+    print("\n【Step 1: Input Normalization】")
+    print(f"Original training data X_train:")
     for i, x in enumerate(X_train):
         print(f"  Point {i}: {x.tolist()}")
-    print(f"原始測試數據 X_test: {X_test[0].tolist()}")
+    print(f"Original test data X_test: {X_test[0].tolist()}")
     
     X_min = X_train.min(dim=0)[0]
     X_max = X_train.max(dim=0)[0]
@@ -44,14 +44,14 @@ def manual_gp_predict(X_train, y_train, X_test, hyperparams):
     X_train_norm = (X_train - X_min) / (X_max - X_min)
     X_test_norm = (X_test - X_min) / (X_max - X_min)
     
-    print(f"\n標準化後訓練數據 X_train_norm:")
+    print(f"\nNormalized training data X_train_norm:")
     for i, x in enumerate(X_train_norm):
         print(f"  Point {i}: {x.tolist()}")
-    print(f"標準化後測試數據 X_test_norm: {X_test_norm[0].tolist()}")
+    print(f"Normalized test data X_test_norm: {X_test_norm[0].tolist()}")
     
     # Step 2: Output standardization (match BoTorch's Standardize transform)
-    print(f"\n【步驟2: Output Standardization】")
-    print(f"原始訓練標籤 y_train: {y_train.tolist()}")
+    print(f"\n【Step 2: Output Standardization】")
+    print(f"Original training labels y_train: {y_train.tolist()}")
     
     y_mean = y_train.mean()
     y_std = y_train.std()
@@ -59,10 +59,10 @@ def manual_gp_predict(X_train, y_train, X_test, hyperparams):
     print(f"y_std = {y_std.item():.6f}")
     
     y_train_norm = (y_train - y_mean) / y_std
-    print(f"標準化後 y_train_norm: {y_train_norm.tolist()}")
+    print(f"Standardized y_train_norm: {y_train_norm.tolist()}")
     
     # Step 3: Build RBF kernel matrix K
-    print(f"\n【步驟3: 超參數設定】")
+    print(f"\n【Step 3: Hyperparameter Settings】")
     lengthscale = hyperparams['lengthscale']
     outputscale = hyperparams['outputscale']
     noise = hyperparams['noise']
@@ -78,32 +78,32 @@ def manual_gp_predict(X_train, y_train, X_test, hyperparams):
         return outputscale * torch.exp(-0.5 * dist_sq)
     
     # Compute kernel matrices
-    print(f"\n【步驟4: 核矩陣計算】")
+    print(f"\n【Step 4: Kernel Matrix Calculation】")
     K = rbf_kernel(X_train_norm, X_train_norm, lengthscale, outputscale)
-    print(f"核矩陣 K (4x4):")
+    print(f"Kernel matrix K (4x4):")
     for i in range(K.shape[0]):
         row_str = "  [" + ", ".join([f"{K[i,j].item():.6f}" for j in range(K.shape[1])]) + "]"
         print(row_str)
     
-    print(f"\n【步驟5: 加入噪聲項】")
+    print(f"\n【Step 5: Adding Noise Term】")
     K_noise = K + noise * torch.eye(K.shape[0], dtype=torch.float64)
-    print(f"加噪聲核矩陣 K_noise = K + {noise:.6f} * I:")
+    print(f"Noisy kernel matrix K_noise = K + {noise:.6f} * I:")
     for i in range(K_noise.shape[0]):
         row_str = "  [" + ", ".join([f"{K_noise[i,j].item():.6f}" for j in range(K_noise.shape[1])]) + "]"
         print(row_str)
     
-    print(f"\n【步驟6: 核向量k*計算】")
+    print(f"\n【Step 6: Kernel Vector k* Calculation】")
     k_star = rbf_kernel(X_test_norm, X_train_norm, lengthscale, outputscale)
-    print(f"核向量 k* = {[f'{x:.6f}' for x in k_star.squeeze().tolist()]}")
+    print(f"Kernel vector k* = {[f'{x:.6f}' for x in k_star.squeeze().tolist()]}")
     
     k_star_star = rbf_kernel(X_test_norm, X_test_norm, lengthscale, outputscale)
-    print(f"測試點自相關 k** = {k_star_star.item():.6f}")
+    print(f"Test point self-correlation k** = {k_star_star.item():.6f}")
     
     # Step 4: GP prediction in normalized space
-    print(f"\n【步驟7: Cholesky分解】")
+    print(f"\n【Step 7: Cholesky Decomposition】")
     # Using Cholesky decomposition for numerical stability
     L = torch.linalg.cholesky(K_noise + 1e-6 * torch.eye(K.shape[0]))  # Add jitter
-    print(f"下三角矩陣 L:")
+    print(f"Lower triangular matrix L:")
     for i in range(L.shape[0]):
         row_str = "  [" + ", ".join([f"{L[i,j].item():.6f}" for j in range(L.shape[1])]) + "]"
         print(row_str)
@@ -113,32 +113,32 @@ def manual_gp_predict(X_train, y_train, X_test, hyperparams):
     alpha = torch.linalg.solve_triangular(L, y_train_norm_col, upper=False)
     alpha = torch.linalg.solve_triangular(L.T, alpha, upper=True)
     
-    print(f"\n【步驟8: 線性系統求解】")
+    print(f"\n【Step 8: Linear System Solution】")
     print(f"α = (K + σ_n²I)⁻¹y = {[f'{x:.6f}' for x in alpha.squeeze().tolist()]}")
     
     # Predictive mean: μ* = k*ᵀ(K + σ²I)⁻¹y
     mean_norm = k_star @ alpha.squeeze()
-    print(f"\n【步驟9: 預測均值 (標準化空間)】")
+    print(f"\n【Step 9: Predictive Mean (Standardized Space)】")
     print(f"μ*_norm = k*ᵀ α = {mean_norm.item():.6f}")
     
     # Predictive variance: σ*² = k** - k*ᵀ(K + σ²I)⁻¹k*
     v = torch.linalg.solve_triangular(L, k_star.T, upper=False)
     var_norm = k_star_star - v.T @ v
     
-    print(f"\n【步驟10: 預測方差 (標準化空間)】")
+    print(f"\n【Step 10: Predictive Variance (Standardized Space)】")
     print(f"v = L⁻¹k* = {[f'{x:.6f}' for x in v.squeeze().tolist()]}")
     print(f"var_reduction = vᵀv = {(v.T @ v).item():.6f}")
     print(f"σ*²_norm = k** - var_reduction = {k_star_star.item():.6f} - {(v.T @ v).item():.6f} = {var_norm.item():.6f}")
     print(f"σ*_norm = √{var_norm.item():.6f} = {torch.sqrt(var_norm).item():.6f}")
     
     # Step 5: Transform back to original space
-    print(f"\n【步驟11: 逆變換回原始空間】")
+    print(f"\n【Step 11: Inverse Transform to Original Space】")
     mean = mean_norm * y_std + y_mean
     variance = var_norm * y_std**2
     std = torch.sqrt(variance.clamp(min=1e-10))
     
-    print(f"最終預測均值: μ* = {mean_norm.item():.6f} × {y_std.item():.6f} + {y_mean.item():.6f} = {mean.item():.6f}")
-    print(f"最終預測標準差: σ* = {torch.sqrt(var_norm).item():.6f} × {y_std.item():.6f} = {std.item():.6f}")
+    print(f"Final predictive mean: μ* = {mean_norm.item():.6f} × {y_std.item():.6f} + {y_mean.item():.6f} = {mean.item():.6f}")
+    print(f"Final predictive std: σ* = {torch.sqrt(var_norm).item():.6f} × {y_std.item():.6f} = {std.item():.6f}")
     
     return mean.squeeze(), std.squeeze()
 

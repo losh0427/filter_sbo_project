@@ -177,12 +177,12 @@ if __name__ == "__main__":
 
 """
 usage:
-# 生成500個input文件
+# Generate 500 input files
 python initial.py --generate --n_samples 500
 
-# 整合現有的input/output文件成dataset
+# Integrate existing input/output files into dataset
 python initial.py --integrate --data_dir ../Data1
 
-# 指定dataset輸出位置
+# Specify dataset output location
 python initial.py --integrate --dataset_file ../MyDataset/dataset.txt
 """
